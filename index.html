@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Модель помещения</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body { 
+				margin: 0; 
+				overflow: hidden; 
+				background-color: #D3D3D3;
+			}
+			#info {
+				position: absolute;
+				top: 10px;
+				width: 100%;
+				text-align: center;
+				color: white;
+				font-family: Arial, sans-serif;
+				z-index: 100;
+				text-shadow: 1px 1px 2px black;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="info">Модель помещения</div>
+
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+
+		<script>
+			let camera, scene, renderer, controls;
+
+			init();
+			animate();
+
+			function init() {
+				// Сцена
+				scene = new THREE.Scene();
+				scene.background = new THREE.Color(0xD3D3D3);
+
+				// Камера
+				camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+				camera.position.set(0, 0, 3000);
+
+				// Рендерер
+				renderer = new THREE.WebGLRenderer({ antialias: true });
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				document.body.appendChild(renderer.domElement);
+
+				// Освещение
+				const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+				scene.add(ambientLight);
+
+				const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+				directionalLight.position.set(1, 1, 1);
+				scene.add(directionalLight);
+
+				// Элементы управления
+				controls = new THREE.OrbitControls(camera, renderer.domElement);
+				controls.enableDamping = true;
+				controls.dampingFactor = 0.05;
+
+				// Создаем комнату
+				createRoom();
+
+				// Добавляем модель учителя
+				loadTeacher();
+
+				// Обработчик изменения размера окна
+				window.addEventListener('resize', onWindowResize);
+			}
+
+			function createRoom() {
+				const textureLoader = new THREE.TextureLoader();
+				
+				// Создаем материалы для каждой стороны комнаты
+				const materials = [];
+				
+				// Загружаем текстуры и создаем материалы
+				const whallTexture = textureLoader.load('models/whall.jpg');
+				const instrumentsTexture = textureLoader.load('models/instruments.jpg');
+				const roofTexture = textureLoader.load('models/roof.jpg');
+				const floorTexture = textureLoader.load('models/floor.jpg');
+				const windowTexture = textureLoader.load('models/window.jpg');
+				const shelfsTexture = textureLoader.load('models/shelfs.jpg');
+				
+				// Настраиваем повторение для пола
+				floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
+				floorTexture.repeat.set(3, 3);
+				
+				// Создаем материалы для каждой стороны
+				materials.push(
+					new THREE.MeshBasicMaterial({ map: whallTexture, side: THREE.BackSide }),     // правая стена
+					new THREE.MeshBasicMaterial({ map: instrumentsTexture, side: THREE.BackSide }), // левая стена с инструментами
+					new THREE.MeshBasicMaterial({ map: roofTexture, side: THREE.BackSide }),      // потолок
+					new THREE.MeshBasicMaterial({ map: floorTexture, side: THREE.BackSide }),     // пол
+					new THREE.MeshBasicMaterial({ map: windowTexture, side: THREE.BackSide }),    // передняя стена с окном
+					new THREE.MeshBasicMaterial({ map: shelfsTexture, side: THREE.BackSide })     // задняя стена с полками
+				);
+				
+				// Создаем геометрию комнаты
+				const roomGeometry = new THREE.BoxGeometry(5000, 5000, 5000);
+				const room = new THREE.Mesh(roomGeometry, materials);
+				scene.add(room);
+				
+				console.log('Комната создана');
+			}
+
+			function loadTeacher() {
+				const onProgress = function(xhr) {
+					if (xhr.lengthComputable) {
+						const percentComplete = xhr.loaded / xhr.total * 100;
+						console.log('Модель учителя: ' + percentComplete.toFixed(2) + '% загружено');
+					}
+				};
+
+				const onError = function(error) {
+					console.error('Ошибка загрузки модели учителя:', error);
+				};
+
+				const mtlLoader = new THREE.MTLLoader();
+				mtlLoader.setPath('https://threejs.org/examples/models/obj/male02/');
+				mtlLoader.load('male02.mtl', function(materials) {
+					materials.preload();
+
+					// Улучшаем материалы модели
+					for (const materialName in materials.materials) {
+						const material = materials.materials[materialName];
+						// Устанавливаем материал непрозрачным
+						material.transparent = false;
+						material.opacity = 1.0;
+						material.alphaTest = 0.5;
+					}
+
+					const objLoader = new THREE.OBJLoader();
+					objLoader.setMaterials(materials);
+					objLoader.setPath('https://threejs.org/examples/models/obj/male02/');
+					objLoader.load('male02.obj', function(object) {
+						object.position.set(-1500, -2400, -200);
+						object.rotation.y = Math.PI / 2;
+						object.scale.setScalar(10);
+						
+						// Убеждаемся, что все материалы непрозрачны
+						object.traverse(function(child) {
+							if (child.isMesh && child.material) {
+								child.material.transparent = false;
+								child.material.opacity = 1.0;
+								child.material.depthWrite = true;
+								child.material.alphaTest = 0.1;
+							}
+						});
+						
+						scene.add(object);
+						console.log('Модель учителя загружена и улучшена');
+					}, onProgress, onError);
+				}, onProgress, onError);
+			}
+
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize(window.innerWidth, window.innerHeight);
+			}
+
+			function animate() {
+				requestAnimationFrame(animate);
+				controls.update();
+				renderer.render(scene, camera);
+			}
+		</script>
+	</body>
+</html>
